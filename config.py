@@ -27,8 +27,6 @@ import tensorflow as tf
 # Quick setup
 SETUP = {
     'model': 'musegan',
-    # {'musegan', 'bmusegan'}
-    # The model to use. Currently support MuseGAN and BinaryMuseGAN models.
 
     'exp_name': None,
     # The experiment name. Also the name of the folder that will be created
@@ -42,14 +40,14 @@ SETUP = {
     # Prefix for the experiment name. Useful when training with different
     # training data to avoid replacing the previous experiment outputs.
 
-    'training_data': 'lastfm_alternative_8b_phrase.npy',
+    'training_data': 'lastfm_alternative_5b_phrase4',
     # Path to the training data. The training data can be loaded from a npy
     # file in the hard disk or from the shared memory using SharedArray package.
     # Note that the data will be reshaped to (-1, num_bar, num_timestep,
     # num_pitch, num_track) and remember to set these variable to proper values,
     # which are defined in `CONFIG['model']`.
 
-    'training_data_location': 'hd',
+    'training_data_location': 'sa',
     # Location of the training data. 'hd' to load from a npy file stored in the
     # hard disk. 'sa' to load from shared memory using SharedArray package.
 
@@ -62,7 +60,7 @@ SETUP = {
     # Use a preset network architecture for the generator or set to None and
     # setup `CONFIG['model']['net_g']` to define the network architecture.
 
-    'preset_d': 'proposed',
+    'preset_d': 'proposed_small',
     # {'proposed', 'proposed_small', 'ablated', 'baseline', None}
     # Use a preset network architecture for the discriminator or set to None
     # and setup `CONFIG['model']['net_d']` to define the network architecture.
@@ -79,31 +77,6 @@ SETUP = {
 
     'evaluate_along_training': True,
     # True to run evaluation along the training process. False for nothing.
-
-    # ------------------------- For BinaryMuseGAN only -------------------------
-    'two_stage_training': True,
-    # True to train the model in a two-stage training setting. False to
-    # train the model in an end-to-end manner.
-
-    'training_phase': 'first_stage',
-    # {'first_stage', 'second_stage'}
-    # The training phase in a two-stage training setting. Only effective
-    # when `two_stage_training` is True.
-
-    'first_stage_dir': None,
-    # The directory containing the pretrained first-stage model. None to
-    # determine automatically (assuming using default `exp_name`). Only
-    # effective when two_stage_training` is True and `training_phase` is
-    # 'second_stage'.
-
-    'joint_training': False,
-    # True to train the generator and the refiner jointly. Only effective
-    # when `two_stage_training` is True and `training_phase` is 'second_stage'.
-
-    'preset_r': 'proposed_bernoulli',
-    # {'proposed_round', 'proposed_bernoulli'}
-    # Use a preset network architecture for the refiner or set to None and
-    # setup `CONFIG['model']['net_r']` to define the network architecture.
 }
 
 CONFIG = {}
@@ -131,7 +104,6 @@ for key in ('model', 'pretrained_dir'):
         CONFIG['exp'][key] = SETUP[key]
 
 if SETUP['model'] == 'musegan':
-    # Set default experiment name
     if CONFIG['exp']['exp_name'] is None:
         if SETUP['exp_name'] is not None:
             CONFIG['exp']['exp_name'] = SETUP['exp_name']
@@ -139,44 +111,6 @@ if SETUP['model'] == 'musegan':
             CONFIG['exp']['exp_name'] = '_'.join(
                 (SETUP['prefix'], 'g', SETUP['preset_g'], 'd',
                  SETUP['preset_d']))
-
-if SETUP['model'] == 'bmusegan':
-    if CONFIG['exp']['two_stage_training'] is None:
-        CONFIG['exp']['two_stage_training'] = SETUP['two_stage_training']
-    # Set default experiment name
-    if CONFIG['exp']['exp_name'] is None:
-        if SETUP['exp_name'] is not None:
-            CONFIG['exp']['exp_name'] = SETUP['exp_name']
-        elif not SETUP['two_stage_training']:
-            CONFIG['exp']['exp_name'] = '_'.join(
-                (SETUP['prefix'], 'end2end', 'g', SETUP['preset_g'], 'd',
-                 SETUP['preset_d'], 'r', SETUP['preset_r']))
-        elif SETUP['training_phase'] == 'first_stage':
-            CONFIG['exp']['exp_name'] = '_'.join(
-                (SETUP['prefix'], SETUP['training_phase'], 'g',
-                 SETUP['preset_g'], 'd', SETUP['preset_d']))
-        elif SETUP['training_phase'] == 'second_stage':
-            if SETUP['joint_training']:
-                CONFIG['exp']['exp_name'] = '_'.join(
-                    (SETUP['prefix'], SETUP['training_phase'], 'joint', 'g',
-                     SETUP['preset_g'], 'd', SETUP['preset_d'], 'r',
-                     SETUP['preset_r']))
-            else:
-                CONFIG['exp']['exp_name'] = '_'.join(
-                    (SETUP['prefix'], SETUP['training_phase'], 'g',
-                     SETUP['preset_g'], 'd', SETUP['preset_d'], 'r',
-                     SETUP['preset_r']))
-    # Set default first stage model directory
-    if CONFIG['exp']['first_stage_dir'] is None:
-        if SETUP['first_stage_dir'] is not None:
-            CONFIG['exp']['first_stage_dir'] = SETUP['first_stage_dir']
-        else:
-            CONFIG['exp']['first_stage_dir'] = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), 'exp',
-                '_'.join((SETUP['prefix'], 'first_stage', 'g',
-                          SETUP['preset_g'], 'd', SETUP['preset_d'])),
-                'checkpoints')
-
 #===============================================================================
 #============================= Data Configuration ==============================
 #===============================================================================
@@ -188,35 +122,26 @@ CONFIG['data'] = {
 for key in ('training_data', 'training_data_location'):
     if CONFIG['data'][key] is None:
         CONFIG['data'][key] = SETUP[key]
-
 #===============================================================================
 #=========================== Training Configuration ============================
 #===============================================================================
 CONFIG['train'] = {
-    'num_epoch': 20,
+    'num_epoch': 2,
     'verbose': None,
     'sample_along_training': None,
     'evaluate_along_training': None,
-    'two_stage_training': None, # For BinaryMuseGAN only
-    'training_phase': None, # For BinaryMuseGAN only
-    'slope_annealing_rate': 1.1, # For BinaryMuseGAN only
 }
 
 for key in ('verbose', 'sample_along_training', 'evaluate_along_training'):
     if CONFIG['train'][key] is None:
         CONFIG['train'][key] = SETUP[key]
 
-if SETUP['model'] == 'bmusegan' and CONFIG['train']['training_phase'] is None:
-    CONFIG['train']['training_phase'] = SETUP['training_phase']
-
 #===============================================================================
 #============================= Model Configuration =============================
 #===============================================================================
 CONFIG['model'] = {
-    'joint_training': None, # For BinaryMuseGAN only
-
     # Parameters
-    'batch_size': 32, # Note: tf.layers.conv3d_transpose requires a fixed batch
+    'batch_size': 16, # Note: tf.layers.conv3d_transpose requires a fixed batch
                       # size in TensorFlow < 1.6
     'gan': {
         'type': 'wgan-gp', # 'gan', 'wgan', 'wgan-gp'
@@ -235,18 +160,18 @@ CONFIG['model'] = {
     'num_bar': 4,
     'num_beat': 4,
     'num_pitch': 84,
-    'num_track': 8,
+    'num_track': 5,
     'num_timestep': 96,
     'beat_resolution': 24,
     'lowest_pitch': 24, # MIDI note number of the lowest pitch in data tensors
 
     # Tracks
     'track_names': (
-        'Drums', 'Piano', 'Guitar', 'Bass', 'Ensemble', 'Reed', 'Synth Lead',
-        'Synth Pad'
+        'Drums', 'Piano', 'Guitar', 'Bass', 'Strings'
+        #'Ensemble', 'Reed', 'Synth Lead','Synth Pad'
     ),
-    'programs': (0, 0, 24, 32, 48, 64, 80, 88),
-    'is_drums': (True, False, False, False, False, False, False, False),
+    'programs': (0, 0, 24, 32, 48),# 64),#, 80, 88),
+    'is_drums': (True, False, False, False, False),
 
     # Network architectures (define them here if not using the presets)
     'net_g': None,
@@ -285,9 +210,6 @@ CONFIG['model'] = {
     'src_dir': None,
 }
 
-if SETUP['model'] == 'bmusegan' and CONFIG['model']['joint_training'] is None:
-    CONFIG['model']['joint_training'] = SETUP['joint_training']
-
 # Import preset network architectures
 if CONFIG['model']['net_g'] is None:
     IMPORTED = importlib.import_module(
@@ -300,11 +222,6 @@ if CONFIG['model']['net_d'] is None:
         '.'.join(('musegan', SETUP['model'], 'presets', 'discriminator',
                   SETUP['preset_d'])))
     CONFIG['model']['net_d'] = IMPORTED.NET_D
-
-if SETUP['model'] == 'bmusegan' and CONFIG['model']['net_r'] is None:
-    IMPORTED = importlib.import_module(
-        '.'.join(('musegan.bmusegan.presets', 'refiner', SETUP['preset_r'])))
-    CONFIG['model']['net_r'] = IMPORTED.NET_R
 
 # Set default directories
 for kv_pair in (('checkpoint_dir', 'checkpoints'), ('sample_dir', 'samples'),

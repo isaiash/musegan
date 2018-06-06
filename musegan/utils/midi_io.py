@@ -31,7 +31,6 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
         program_nums = [program_nums]
     if isinstance(is_drums, int):
         is_drums = [is_drums]
-
     if pianorolls.shape[2] != len(program_nums):
         raise ValueError("`pianorolls` and `program_nums` must have the same"
                          "length")

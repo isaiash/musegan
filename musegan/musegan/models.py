@@ -54,7 +54,7 @@ class GAN(Model):
         self.x = tf.placeholder(tf.bool, data_shape, 'x')
         self.x_ = tf.cast(self.x, tf.float32, 'x_')
 
-        # Components
+        print("Components")
         self.G = Generator(self.z, self.config, name='G')
         self.test_round = self.G.tensor_out > 0.5
         self.test_bernoulli = self.G.tensor_out > tf.random_uniform(data_shape)
@@ -63,10 +63,10 @@ class GAN(Model):
         self.D_real = Discriminator(self.x_, self.config, name='D', reuse=True)
         self.components = (self.G, self.D_fake)
 
-        # Losses
+        print("Losses")
         self.g_loss, self.d_loss = self.get_adversarial_loss(Discriminator)
 
-        # Optimizers
+        print("Optimizers")
         with tf.variable_scope('Optimizer'):
             self.g_optimizer = self.get_optimizer()
             self.g_step = self.g_optimizer.minimize(
@@ -85,13 +85,13 @@ class GAN(Model):
                             self.config['gan']['clip_value']))
                           for var in self.D_fake.vars))
 
-        # Metrics
+        print("Metrics")
         self.metrics = Metrics(self.config)
 
-        # Saver
+        print("Saver")
         self.saver = tf.train.Saver()
 
-        # Print and save model information
+        print("Print and save model information")
         self.print_statistics()
         self.save_statistics()
         self.print_summary()
@@ -99,21 +99,22 @@ class GAN(Model):
 
     def train(self, x_train, train_config):
         """Train the model."""
-        # Initialize sampler
+        print("Initialize sampler")
         self.x_sample = x_train[np.random.choice(
             len(x_train), self.config['batch_size'], False)]
         feed_dict_sample = {self.x: self.x_sample}
 
         self.z_sample = {}
+        print("self.z:", self.z)
         for key in self.z:
             self.z_sample[key] = np.random.normal(size=self.z[key].get_shape())
             feed_dict_sample[self.z[key]] = self.z_sample[key]
 
-        # Save samples
+        print("Save samples")
         self.save_samples('x_train', x_train, save_midi=True)
         self.save_samples('x_sample', self.x_sample, save_midi=True)
 
-        # Open log files and write headers
+        print("Open log files and write headers")
         log_step = open(os.path.join(self.config['log_dir'], 'step.log'), 'w')
         log_batch = open(os.path.join(self.config['log_dir'], 'batch.log'), 'w')
         log_epoch = open(os.path.join(self.config['log_dir'], 'epoch.log'), 'w')
@@ -121,18 +122,17 @@ class GAN(Model):
         log_batch.write('# epoch, batch, time, negative_critic_loss, g_loss\n')
         log_epoch.write('# epoch, time, negative_critic_loss, g_loss\n')
 
-        # Initialize counter
+        print("Initialize counter")
         counter = 0
         num_batch = len(x_train) // self.config['batch_size']
 
-        # Start epoch iteration
+        print("Start epoch iteration")
         print('{:=^80}'.format(' Training Start '))
         for epoch in range(train_config['num_epoch']):
-
             print('{:-^80}'.format(' Epoch {} Start '.format(epoch)))
             epoch_start_time = time.time()
 
-            # Prepare batched training data
+            print("Prepare batched training data")
             z_random_batch = {}
             for key in self.z:
                 z_random_batch[key] = np.random.normal(
@@ -140,7 +140,7 @@ class GAN(Model):
             x_random_batch = np.random.choice(
                 len(x_train), (num_batch, self.config['batch_size']), False)
 
-            # Start batch iteration
+            print("Start batch iteration")
             for batch in range(num_batch):
 
                 feed_dict_batch = {self.x: x_train[x_random_batch[batch]]}
@@ -148,16 +148,17 @@ class GAN(Model):
                     feed_dict_batch[self.z[key]] = z_random_batch[key][batch]
 
                 if (counter < 25) or (counter % 500 == 0):
-                    num_critics = 100
+                    num_critics = 2
                 else:
                     num_critics = 5
 
                 batch_start_time = time.time()
 
-                # Update networks
+                print("Update networks")
                 for _ in range(num_critics):
                     _, d_loss = self.sess.run([self.d_step, self.d_loss],
                                               feed_dict_batch)
+                    print("***", _, d_loss)
                     log_step.write("{}, {:14.6f}\n".format(
                         self.get_global_step_str(), -d_loss
                     ))
@@ -184,7 +185,7 @@ class GAN(Model):
                     epoch, batch, time_batch, -d_loss, g_loss
                 ))
 
-                # run sampler
+                print("run sampler")
                 if train_config['sample_along_training']:
                     if counter%100 == 0 or (counter < 300 and counter%20 == 0):
                         self.run_sampler(self.G.tensor_out, feed_dict_sample,
@@ -195,7 +196,7 @@ class GAN(Model):
                                          (counter > 500),
                                          postfix='test_bernoulli')
 
-                # run evaluation
+                print("run evaluation")
                 if train_config['evaluate_along_training']:
                     if counter%10 == 0:
                         self.run_eval(self.test_round, feed_dict_sample,
